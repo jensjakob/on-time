@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+   <head>
+		<meta name="viewport" content="width=device-width, initial-scale=1"> 
+		
+        <title>Ontime</title>
+        <link rel="stylesheet" href="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.css" />
+        <script src="http://code.jquery.com/jquery-1.8.2.min.js"></script>
+        <script src="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.js"></script>
+        <script type="text/javascript" src="http://maps.google.com/maps/api/js?v=3&sensor=false&language=sv"></script>
+        <script src="https://datejs.googlecode.com/svn/trunk/build/date-en-GB.js"></script>
+				<script type="text/javascript">
+
+            var map,
+                currentPosition,
+                directionsDisplay, 
+                directionsService,
+                destinationLatitude = 59.305335531131384,
+                destinationLongitude = 18.09898853302002;
+
+            function initializeMapAndCalculateRoute(lat, lon)
+            {
+                directionsDisplay = new google.maps.DirectionsRenderer(); 
+                directionsService = new google.maps.DirectionsService();
+
+                currentPosition = new google.maps.LatLng(lat, lon);
+
+                map = new google.maps.Map(document.getElementById('map_canvas'), {
+                   zoom: 15,
+                   center: currentPosition,
+                   mapTypeId: google.maps.MapTypeId.ROADMAP,
+				   streetViewControl: false
+                 });
+
+                directionsDisplay.setMap(map);
+
+                //  var currentPositionMarker = new google.maps.Marker({
+                //     position: currentPosition,
+                //     map: map,
+                //     title: "Current position"
+                // });
+
+
+				google.maps.event.addListener(map, "click", function(event) {
+				    destinationLatitude = event.latLng.lat();
+				    destinationLongitude = event.latLng.lng();
+				    // populate yor box/field with lat, lng
+				    // alert("Lat=" + lat + "; Lng=" + lng);
+					
+					calculateRoute();
+					
+					$("#q").show();
+					
+					
+				});
+
+                // current position marker info
+                /*
+                var infowindow = new google.maps.InfoWindow();
+                google.maps.event.addListener(currentPositionMarker, 'click', function() {
+                    infowindow.setContent("Current position: latitude: " + lat +" longitude: " + lon);
+                    infowindow.open(map, currentPositionMarker);
+                });
+                */
+
+                // calculate Route
+                // calculateRoute();
+            }
+
+            function locError(error) {
+               // the current position could not be located
+				alert("error");
+            }
+
+            function locSuccess(position) {
+                // initialize map with current position and calculate the route
+                initializeMapAndCalculateRoute(position.coords.latitude, position.coords.longitude);
+            }
+
+            function calculateRoute() {
+
+                var targetDestination =  new google.maps.LatLng(destinationLatitude, destinationLongitude);
+                if (currentPosition != '' && targetDestination != '') {
+
+                    var request = {
+                        origin: currentPosition, 
+                        destination: targetDestination,
+                        travelMode: google.maps.DirectionsTravelMode["WALKING"]
+                    };
+
+                    directionsService.route(request, function(response, status) {
+                        if (status == google.maps.DirectionsStatus.OK) {
+                            // directionsDisplay.setPanel(document.getElementById("directions"));
+                            directionsDisplay.setDirections(response); 
+
+							var myRoute = response.routes[0].legs[0];
+						//	alert(myRoute.duration.text);
+							var now = new Date();
+							var goal = new Date(now.getTime() + myRoute.duration.value*1000);
+							$("#goal_time").val(goal.toString("HH:mm"));
+						//	alert(goal.getHours() + ":" + goal.getMinutes());
+                            /*
+                                var myRoute = response.routes[0].legs[0];
+                                for (var i = 0; i < myRoute.steps.length; i++) {
+                                    alert(myRoute.steps[i].instructions);
+                                }
+                            */
+                            $("#results").show();
+							$("#goal_time").select();
+							$("#goal_pos").val(destinationLatitude+","+destinationLongitude);
+							$("#goal_distance").val(response.routes[0].legs[0].distance.value);
+							
+                        }
+                        else {
+                            $("#results").hide();
+                        }
+                    });
+                }
+                else {
+                    $("#results").hide();
+                }
+            }
+
+            $(document).live("pagebeforeshow", "#map_page", function() {
+                // find current position and on success initialize map and calculate the route
+                navigator.geolocation.getCurrentPosition(locSuccess, locError);
+            });
+
+
+			$(document).ready( function () {
+				$("#go").click( function () {
+					var start_date = new Date();
+					$("#start_date").val(start_date.getTime());
+					$("#goal_date").val(new Date.parse($("#goal_time").val()).getTime());
+					
+					var walker = setInterval(function(){walk()},2000);
+					
+					var curr_time, curr_time_part
+					function walk() {
+						curr_time = new Date();
+						curr_time_part = parseInt(((curr_time.getTime()-$("#start_date").val()) / ($("#goal_date").val()-$("#start_date").val()))*100)
+						
+						if (curr_time_part >= 100) {
+							clearInterval(walker);
+							alert("Late?");
+							curr_time_part = 100;
+						}
+						
+						$("#elapsed_time").val(curr_time_part);
+						$("#elapsed_time_graph").width(curr_time_part + "%");
+						
+						navigator.geolocation.getCurrentPosition(newlocSuccess, locError);
+						
+					}
+					
+					function newlocSuccess(position) {
+						// alert("updated");
+						currentPosition = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+						targetDestination =  new google.maps.LatLng(destinationLatitude, destinationLongitude);
+						
+	                    var request = {
+	                        origin: currentPosition, 
+	                        destination: targetDestination,
+	                        travelMode: google.maps.DirectionsTravelMode["WALKING"]
+	                    };
+						
+						var curr_loc_distance, curr_loc_part, elapsed_diff, msg;
+	                    directionsService.route(request, function(response, status) {
+	                        if (status == google.maps.DirectionsStatus.OK) {
+								curr_loc_distance = response.routes[0].legs[0].distance.value;
+								curr_loc_part = parseInt(($("#goal_distance").val()-curr_loc_distance)/curr_loc_distance*100);
+								$("#elapsed_distance").val(curr_loc_part);
+								$("#elapsed_distance_graph").width(curr_loc_part + "%");
+								
+								elapsed_diff = curr_loc_part - curr_time_part;
+								
+								switch(elapsed_diff) {
+								case -5:
+								  msg = "You need teleportation";
+								  break;
+								case -4:
+								  msg = "Beam me up, Scotty";
+								  break;
+								case -3:
+								  msg = "Don't just sit there, do something about it!";
+								  break;
+								case -2:
+								  msg = "You need to run";
+								  break;
+								case -1:
+								  msg = "You're a bit off schedule";
+								  break;
+								case 0:
+								  msg = "You're on time";
+								  break;
+								case 1:
+								  msg = "Be safe, don't rush things";
+								  break;
+								case 2:
+								  msg = "Yes, you've got time";
+								  break;
+								case 3:
+								  msg = "Take a closer look at something...";
+								  break;
+								case 4:
+								  msg = "You can take a break now";
+								  break;
+								case 5:
+								  msg = "Did you invent teleportation?";
+								  break;
+								}
+								
+								// $("#message").html(msg + "<br>"+elapsed_diff+" = "+curr_loc_part+" - "+curr_time_part);
+								
+	                        }
+	                        else {
+	                            alert("No location available")
+	                        }
+	                    });
+					}
+					
+					$("#timeline").show();
+					
+					$("#q").hide();
+					$("#results").hide();
+					$("#map").hide()
+				});
+			});
+			
+        </script>
+<style>
+.progress {
+	background-color: green;
+	height: 25px;
+	margin: 4px 0;
+	width: 1%;
+	padding: 5px;
+}
+#message {
+	font-size: 50px;
+	font-weight: bold;
+	text-align: center;
+}
+</style>
+    </head>
+    <body>
+        <div id="basic-map" data-role="page">
+			<div data-role="header">
+					<h1>Ontime</h1>
+				</div>
+            <div data-role="content">  
+				
+				<div id="q" style="display:none;">
+					When do I need to be there?
+				<input id="goal_time" type="text" value=":">
+				<input id="goal_pos" type="hidden" value=",">
+				<input id="goal_distance" type="hidden" value="m">
+				<input id="start_date" type="hidden" value="start">
+				<input id="goal_date" type="hidden" value="">
+				<input id="elapsed_time" type="hidden" value="t%">
+				<input id="elapsed_distance" type="hidden" value="d%">
+				
+				<button id="go">G&aring;!</button>
+				</div>
+				
+				<div id="timeline" style="display:none;">
+				<div id="message">Go! Time's ticking</div>
+				<div id="elapsed_time_graph" class="progress">time</div>
+				<div id="elapsed_distance_graph" class="progress">distance</div>
+				</div>
+				
+                <div id="map" class="ui-bar-c ui-corner-all ui-shadow">
+                    <div id="map_canvas" style="height:350px;"></div>
+                </div>
+                <div id="results" style="display:none;">
+                    <div id="directions"></div>
+                </div>
+            </div>
+        </div>      
+    </body>
+</html>
